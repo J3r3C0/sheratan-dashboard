@@ -17,26 +17,32 @@ export function JobTable({ jobs }: JobTableProps) {
   const [viewResultId, setViewResultId] = useState<string | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
-  const getStatusVariant = (status: Job["status"]) => {
+  const getStatusVariant = (status: Job["status"] | string) => {
     switch (status) {
       case "done":
+      case "completed":
         return "success";
       case "working":
+      case "running":
         return "info";
       case "error":
+      case "failed":
         return "danger";
       default:
         return "neutral";
     }
   };
 
-  const getStatusIcon = (status: Job["status"]) => {
+  const getStatusIcon = (status: Job["status"] | string) => {
     switch (status) {
       case "done":
+      case "completed":
         return CheckCircle2;
       case "working":
+      case "running":
         return Loader2;
       case "error":
+      case "failed":
         return XCircle;
       default:
         return Clock;
@@ -111,6 +117,9 @@ export function JobTable({ jobs }: JobTableProps) {
                 const hasResult = job.result !== null && job.result !== undefined;
                 const isConfirmingDelete = deleteConfirmId === job.id;
 
+                // Extract error message from top-level or result
+                const jobError = job.error || job.result?.error;
+
                 return (
                   <tr key={job.id} className="hover:bg-slate-900/20 transition">
                     <td className="px-4 py-3 text-sheratan-accent font-mono text-xs">{job.id.slice(0, 8)}...</td>
@@ -128,11 +137,11 @@ export function JobTable({ jobs }: JobTableProps) {
                     </td>
                     <td className="px-4 py-3 text-slate-400">{formatDuration(job.duration)}</td>
                     <td className="px-4 py-3 text-xs text-slate-500">
-                      {job.error ? (
-                        <span className="text-sheratan-danger">{job.error}</span>
-                      ) : job.status === "working" ? (
+                      {jobError ? (
+                        <span className="text-sheratan-danger" title={jobError}>{jobError}</span>
+                      ) : job.status === "working" || job.status === "running" ? (
                         <span className="text-sheratan-accent">In progress...</span>
-                      ) : job.status === "done" ? (
+                      ) : job.status === "done" || job.status === "completed" ? (
                         <span className="text-emerald-400">Completed successfully</span>
                       ) : (
                         <span>Waiting in queue</span>
