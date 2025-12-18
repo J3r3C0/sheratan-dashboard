@@ -1,40 +1,53 @@
 import { Server, Cpu, HardDrive, AlertCircle, CheckCircle2, Clock } from "lucide-react";
-import { mockServices, mockMetrics } from "../../data/mockData";
 import { StatCard } from "../../components/common/StatCard";
 import { StatusPill } from "../../components/common/StatusPill";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
-
-const cpuData = Array.from({ length: 20 }, (_, i) => ({
-  time: `${i}m`,
-  cpu: 30 + Math.random() * 30,
-  memory: 50 + Math.random() * 30,
-}));
+import { useQuery } from "@tanstack/react-query";
+import { getSystemMetrics, getSystemHealth } from "../../api/system";
+import { useState, useEffect } from "react";
 
 export function HealthTab() {
-  const servicesUp = mockServices.filter((s) => s.status === "up").length;
-  const servicesDegraded = mockServices.filter((s) => s.status === "degraded").length;
-  const servicesDown = mockServices.filter((s) => s.status === "down").length;
+  const { data: metrics = { cpu: 0, memory: 0, queueLength: 0, errorRate: 0 }, isLoading: isLoadingMetrics } = useQuery({
+    queryKey: ['system-metrics'],
+    queryFn: getSystemMetrics,
+    refetchInterval: 3000,
+  });
 
-  const getStatusVariant = (status: "up" | "down" | "degraded") => {
+  const { data: health = [], isLoading: isLoadingHealth } = useQuery({
+    queryKey: ['system-health'],
+    queryFn: getSystemHealth,
+    refetchInterval: 5000,
+  });
+
+  const [history, setHistory] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (metrics) {
+      setHistory(prev => {
+        const newEntry = {
+          time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+          cpu: metrics.cpu,
+          memory: metrics.memory,
+        };
+        const updated = [...prev, newEntry];
+        return updated.slice(-20); // Keep last 20 entries
+      });
+    }
+  }, [metrics]);
+
+  const servicesUp = health.filter((s: any) => s.status === "up").length;
+  const servicesDown = health.filter((s: any) => s.status === "down").length;
+
+  const getStatusVariant = (status: string) => {
     switch (status) {
-      case "up":
-        return "success";
-      case "degraded":
-        return "warning";
-      default:
-        return "danger";
+      case "up": return "success";
+      case "degraded": return "warning";
+      default: return "danger";
     }
   };
 
-  const getStatusIcon = (status: "up" | "down" | "degraded") => {
-    switch (status) {
-      case "up":
-        return CheckCircle2;
-      case "degraded":
-        return AlertCircle;
-      default:
-        return AlertCircle;
-    }
+  const getStatusIcon = (status: string) => {
+    return status === "up" ? CheckCircle2 : AlertCircle;
   };
 
   return (
@@ -42,42 +55,42 @@ export function HealthTab() {
       <header>
         <h1 className="text-xl">System Health & Status</h1>
         <p className="text-sm text-slate-400 mt-1">
-          Service-Status, System-Metriken, Ports und Performance-Charts.
+          Service-Status, System-Metriken, Ports und Performance-Charts (Live).
         </p>
       </header>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <StatCard
           label="CPU Usage"
-          value={`${mockMetrics.cpu}%`}
+          value={`${Math.round(metrics.cpu)}%`}
           icon={Cpu}
-          variant={mockMetrics.cpu > 70 ? "warning" : "default"}
+          variant={metrics.cpu > 70 ? "warning" : "default"}
         />
         <StatCard
           label="Memory"
-          value={`${mockMetrics.memory}%`}
+          value={`${Math.round(metrics.memory)}%`}
           icon={HardDrive}
-          variant={mockMetrics.memory > 80 ? "danger" : "default"}
+          variant={metrics.memory > 80 ? "danger" : "default"}
         />
         <StatCard
-          label="Queue Length"
-          value={mockMetrics.queueLength}
+          label="Pending/Running"
+          value={metrics.queueLength}
           icon={Clock}
         />
         <StatCard
-          label="Error Rate"
-          value={`${mockMetrics.errorRate}%`}
+          label="Job Error Rate"
+          value={`${metrics.errorRate}%`}
           icon={AlertCircle}
-          variant={mockMetrics.errorRate > 5 ? "danger" : "success"}
+          variant={metrics.errorRate > 5 ? "danger" : "success"}
         />
       </div>
 
       <div className="bg-sheratan-card border border-slate-700 rounded-lg p-4">
-        <h3 className="text-sm mb-4">System Metrics (Last 20 Minutes)</h3>
+        <h3 className="text-sm mb-4">Real-time Metrics (Last 20 Samples)</h3>
         <ResponsiveContainer width="100%" height={200}>
-          <AreaChart data={cpuData}>
+          <AreaChart data={history}>
             <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-            <XAxis dataKey="time" stroke="#64748b" style={{ fontSize: 11 }} />
+            <XAxis dataKey="time" stroke="#64748b" style={{ fontSize: 9 }} />
             <YAxis stroke="#64748b" style={{ fontSize: 11 }} />
             <Tooltip
               contentStyle={{
@@ -93,6 +106,7 @@ export function HealthTab() {
               stroke="#00C3D4"
               fill="#00C3D433"
               strokeWidth={2}
+              isAnimationActive={false}
             />
             <Area
               type="monotone"
@@ -100,34 +114,26 @@ export function HealthTab() {
               stroke="#10b981"
               fill="#10b98133"
               strokeWidth={2}
+              isAnimationActive={false}
             />
           </AreaChart>
         </ResponsiveContainer>
-        <div className="flex items-center gap-4 mt-3 text-xs">
-          <div className="flex items-center gap-1">
-            <div className="w-3 h-3 bg-sheratan-accent/30 border border-sheratan-accent rounded" />
-            <span className="text-slate-400">CPU</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <div className="w-3 h-3 bg-emerald-500/30 border border-emerald-500 rounded" />
-            <span className="text-slate-400">Memory</span>
-          </div>
-        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Services Status */}
         <div className="bg-sheratan-card border border-slate-700 rounded-lg overflow-hidden">
           <div className="px-4 py-3 border-b border-slate-700">
-            <h3 className="text-sm">Services & Ports</h3>
+            <h3 className="text-sm">Services & Port Checks</h3>
             <div className="flex items-center gap-3 text-xs text-slate-400 mt-1">
-              <span className="text-emerald-400">{servicesUp} UP</span>
-              <span className="text-amber-400">{servicesDegraded} DEGRADED</span>
+              <span className="text-emerald-400">{servicesUp} ACTIVE</span>
               <span className="text-red-400">{servicesDown} DOWN</span>
             </div>
           </div>
           <div className="divide-y divide-slate-800">
-            {mockServices.map((service) => {
+            {isLoadingHealth ? (
+              <div className="p-4 text-center text-xs text-slate-500 italic">Checking ports...</div>
+            ) : health.map((service: any) => {
               const Icon = getStatusIcon(service.status);
               return (
                 <div key={service.name} className="px-4 py-3 hover:bg-slate-900/20 transition">
@@ -141,9 +147,9 @@ export function HealthTab() {
                   <div className="flex items-center gap-4 text-xs text-slate-400 ml-6">
                     <span>Port: <span className="text-sheratan-accent">{service.port}</span></span>
                     <span>•</span>
-                    <span>Uptime: {service.uptime}</span>
+                    <span>Status: {service.status.toUpperCase()}</span>
                     <span>•</span>
-                    <span>Last check: {new Date(service.lastCheck).toLocaleTimeString()}</span>
+                    <span>Checked: {new Date(service.lastCheck).toLocaleTimeString()}</span>
                   </div>
                 </div>
               );

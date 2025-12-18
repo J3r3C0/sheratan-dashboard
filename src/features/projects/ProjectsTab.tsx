@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Folder, ChevronRight, ChevronDown, File, Plus } from "lucide-react";
-import { mockProjects, mockFileTree } from "../../data/mockData";
 import { StatusPill } from "../../components/common/StatusPill";
-import type { FileNode } from "../../types";
+import type { FileNode, Project } from "../../types";
+import { useQuery } from "@tanstack/react-query";
+import { projectsApi } from "../../api/projects";
 
 function FileTreeNode({ node, depth = 0 }: { node: FileNode; depth?: number }) {
   const [isExpanded, setIsExpanded] = useState(depth === 0);
@@ -43,7 +44,25 @@ function FileTreeNode({ node, depth = 0 }: { node: FileNode; depth?: number }) {
 }
 
 export function ProjectsTab() {
-  const [selectedProject, setSelectedProject] = useState(mockProjects[0]);
+  const [selectedProject, setSelectedProject] = useState<Project | null>(null);
+
+  const { data: projects = [], isLoading: isLoadingProjects } = useQuery({
+    queryKey: ['projects'],
+    queryFn: () => projectsApi.getProjects(),
+  });
+
+  const { data: fileTree = [], isLoading: isLoadingFiles } = useQuery({
+    queryKey: ['project-files', selectedProject?.id],
+    queryFn: () => projectsApi.getProjectFiles(selectedProject!.id),
+    enabled: !!selectedProject,
+  });
+
+  // Set default selection
+  useEffect(() => {
+    if (projects.length > 0 && !selectedProject) {
+      setSelectedProject(projects[0]);
+    }
+  }, [projects, selectedProject]);
 
   return (
     <div className="space-y-6">
@@ -65,16 +84,19 @@ export function ProjectsTab() {
         <div className="lg:col-span-1 bg-sheratan-card border border-slate-700 rounded-lg overflow-hidden">
           <div className="px-4 py-3 border-b border-slate-700">
             <h3 className="text-sm">Registered Projects</h3>
-            <p className="text-xs text-slate-400 mt-0.5">{mockProjects.length} total</p>
+            <p className="text-xs text-slate-400 mt-0.5">{projects.length} total</p>
           </div>
           <div className="divide-y divide-slate-800">
-            {mockProjects.map((project) => (
+            {isLoadingProjects ? (
+              <div className="p-4 text-center text-xs text-slate-500 italic">Scanning Sheratan root...</div>
+            ) : projects.length === 0 ? (
+              <div className="p-4 text-center text-xs text-slate-500 italic">No projects found in C:\Sheratan</div>
+            ) : projects.map((project) => (
               <button
                 key={project.id}
                 onClick={() => setSelectedProject(project)}
-                className={`w-full text-left px-4 py-3 hover:bg-slate-900/40 transition ${
-                  selectedProject.id === project.id ? "bg-sheratan-accent/5 border-l-2 border-sheratan-accent" : ""
-                }`}
+                className={`w-full text-left px-4 py-3 hover:bg-slate-900/40 transition ${selectedProject?.id === project.id ? "bg-sheratan-accent/5 border-l-2 border-sheratan-accent" : ""
+                  }`}
               >
                 <div className="flex items-start justify-between gap-2 mb-2">
                   <div className="flex items-center gap-2">
@@ -88,8 +110,6 @@ export function ProjectsTab() {
                 </div>
                 <p className="text-xs text-slate-400 line-clamp-1 ml-6">{project.path}</p>
                 <div className="flex items-center gap-2 mt-1 ml-6 text-xs text-slate-500">
-                  <span>{project.fileCount} files</span>
-                  <span>•</span>
                   <span>{new Date(project.lastAccess).toLocaleDateString()}</span>
                 </div>
               </button>
@@ -99,53 +119,62 @@ export function ProjectsTab() {
 
         {/* File Tree */}
         <div className="lg:col-span-2 space-y-4">
-          <div className="bg-sheratan-card border border-slate-700 rounded-lg p-4">
-            <h3 className="text-sm mb-3">Project Info: {selectedProject.name}</h3>
-            <div className="grid grid-cols-2 gap-4 text-sm">
-              <div>
-                <span className="text-xs text-slate-400">Path</span>
-                <div className="text-slate-200 mt-1 break-all">{selectedProject.path}</div>
-              </div>
-              <div>
-                <span className="text-xs text-slate-400">Status</span>
-                <div className="mt-1">
-                  <StatusPill
-                    status={selectedProject.status}
-                    variant={selectedProject.status === "active" ? "success" : "neutral"}
-                  />
-                </div>
-              </div>
-              <div>
-                <span className="text-xs text-slate-400">File Count</span>
-                <div className="text-slate-200 mt-1">{selectedProject.fileCount}</div>
-              </div>
-              <div>
-                <span className="text-xs text-slate-400">Last Access</span>
-                <div className="text-slate-200 mt-1">
-                  {new Date(selectedProject.lastAccess).toLocaleString()}
-                </div>
-              </div>
+          {!selectedProject ? (
+            <div className="bg-sheratan-card border border-slate-700 rounded-lg p-12 text-center text-slate-500 italic">
+              Select a project to view files.
             </div>
-          </div>
+          ) : (
+            <>
+              <div className="bg-sheratan-card border border-slate-700 rounded-lg p-4">
+                <h3 className="text-sm mb-3">Project Info: {selectedProject.name}</h3>
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <span className="text-xs text-slate-400">Path</span>
+                    <div className="text-slate-200 mt-1 break-all">{selectedProject.path}</div>
+                  </div>
+                  <div>
+                    <span className="text-xs text-slate-400">Status</span>
+                    <div className="mt-1">
+                      <StatusPill
+                        status={selectedProject.status}
+                        variant={selectedProject.status === "active" ? "success" : "neutral"}
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <span className="text-xs text-slate-400">Project ID</span>
+                    <div className="text-slate-200 mt-1">{selectedProject.id}</div>
+                  </div>
+                  <div>
+                    <span className="text-xs text-slate-400">Last Access</span>
+                    <div className="text-slate-200 mt-1">
+                      {new Date(selectedProject.lastAccess).toLocaleString()}
+                    </div>
+                  </div>
+                </div>
+              </div>
 
-          <div className="bg-sheratan-card border border-slate-700 rounded-lg overflow-hidden">
-            <div className="px-4 py-3 border-b border-slate-700 flex items-center justify-between">
-              <div>
-                <h3 className="text-sm">File Tree</h3>
-                <p className="text-xs text-slate-400 mt-0.5">
-                  {selectedProject.name} structure
-                </p>
+              <div className="bg-sheratan-card border border-slate-700 rounded-lg overflow-hidden">
+                <div className="px-4 py-3 border-b border-slate-700 flex items-center justify-between">
+                  <div>
+                    <h3 className="text-sm">File Tree</h3>
+                    <p className="text-xs text-slate-400 mt-0.5">
+                      {selectedProject.name} structure
+                    </p>
+                  </div>
+                </div>
+                <div className="p-2 max-h-[500px] overflow-y-auto">
+                  {isLoadingFiles ? (
+                    <div className="p-4 text-center text-xs text-slate-500 italic">Loading file tree...</div>
+                  ) : fileTree.length === 0 ? (
+                    <div className="p-4 text-center text-xs text-slate-500 italic">No files found or access denied.</div>
+                  ) : fileTree.map((node, i) => (
+                    <FileTreeNode key={i} node={node} />
+                  ))}
+                </div>
               </div>
-              <button className="text-xs text-sheratan-accent hover:text-sheratan-accent/80">
-                Open in VS Code
-              </button>
-            </div>
-            <div className="p-2 max-h-[500px] overflow-y-auto">
-              {mockFileTree.map((node, i) => (
-                <FileTreeNode key={i} node={node} />
-              ))}
-            </div>
-          </div>
+            </>
+          )}
         </div>
       </div>
     </div>

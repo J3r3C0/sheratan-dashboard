@@ -32,12 +32,14 @@ export interface LiveSystemStatus {
 
 export const getLiveSystemStatus = async (): Promise<LiveSystemStatus> => {
     try {
-        const [statusRes, jobsRes] = await Promise.all([
+        const [statusRes, jobsRes, meshRes] = await Promise.all([
             apiClient.get('/status'),
             apiClient.get<any[]>('/jobs'),
+            apiClient.get<any[]>('/mesh/workers'),
         ]);
 
         const jobs = jobsRes.data || [];
+        const workers = meshRes.data || [];
         const activeJobs = jobs.filter(j => j.status !== 'done' && j.status !== 'failed');
         const runningJobs = jobs.filter(j => j.status === 'running' || j.status === 'working');
 
@@ -51,9 +53,9 @@ export const getLiveSystemStatus = async (): Promise<LiveSystemStatus> => {
 
         return {
             selfloopState,
-            activeModel: 'llama-3.8b-instruct', // Could be fetched from config
-            meshNodesOnline: 4, // TODO: Mesh API when available
-            meshNodesTotal: 5,
+            activeModel: statusRes.data.model || 'Llama 3.1 8B (Mesh)',
+            meshNodesOnline: workers.filter(w => w.status === 'online').length,
+            meshNodesTotal: workers.length,
             jobsInQueue: activeJobs.length,
             unreadAlerts: jobs.filter(j => j.status === 'failed').length,
         };
@@ -67,5 +69,25 @@ export const getLiveSystemStatus = async (): Promise<LiveSystemStatus> => {
             jobsInQueue: 0,
             unreadAlerts: 0,
         };
+    }
+};
+
+export const getSystemMetrics = async () => {
+    try {
+        const response = await apiClient.get('/system/metrics');
+        return response.data;
+    } catch (error) {
+        console.error('Failed to fetch system metrics:', error);
+        return { cpu: 0, memory: 0, queueLength: 0, errorRate: 0 };
+    }
+};
+
+export const getSystemHealth = async () => {
+    try {
+        const response = await apiClient.get('/system/health');
+        return response.data;
+    } catch (error) {
+        console.error('Failed to fetch system health:', error);
+        return [];
     }
 };
