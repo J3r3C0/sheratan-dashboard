@@ -8,7 +8,7 @@ const coreApiClient = axios.create({
 });
 
 const backendPocClient = axios.create({
-    baseURL: import.meta.env.VITE_BACKEND_POC_URL || 'http://localhost:8000',
+    baseURL: `${import.meta.env.VITE_CORE_API_URL || 'http://localhost:8001'}/api`,
     timeout: 10000,
     headers: { 'Content-Type': 'application/json' },
 });

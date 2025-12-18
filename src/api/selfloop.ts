@@ -59,7 +59,7 @@ export const selfloopApi = {
      */
     quickStartCodeAnalysis: async (): Promise<QuickStartResponse> => {
         console.log('🚀 Starting Quick Code Analysis via Backend PoC...');
-        const response = await backendPocClient.post<QuickStartResponse>('/api/missions/standard-code-analysis');
+        const response = await backendPocClient.post<QuickStartResponse>('/missions/standard-code-analysis');
         console.log('✅ Quick Start response:', response.data);
         return response.data;
     },
